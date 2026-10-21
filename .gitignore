@@ -2,6 +2,3 @@ game/node_modules/
 game/dist/
 game/.npm-cache/
 *.log
-
-# 仅获准用于本地课程演示的第三方配乐，不随公开仓库分发。
-game/assets/audio/a-day-in-mondstadt.mp3
