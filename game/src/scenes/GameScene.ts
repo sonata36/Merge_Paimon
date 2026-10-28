@@ -72,32 +72,45 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     if (window.location.protocol === 'file:') return;
-    const missingForTest = import.meta.env.DEV
-      ? Number(new URLSearchParams(window.location.search).get('missing'))
-      : 0;
     for (const config of LEVELS) {
-      if (config.level === missingForTest) continue;
+      if (this.isMissingForTest(config.level)) continue;
       this.load.image(config.textureKey, `./characters/lv${config.level}.png`);
     }
   }
 
   create(): void {
-    if (window.location.protocol === 'file:') {
-      void this.loadLocalFileImages().then(() => this.initializeGame());
-      return;
-    }
-    this.initializeGame();
+    void this.loadMissingImages().then(() => {
+      if (this.sys.isActive()) this.initializeGame();
+    });
   }
 
-  private async loadLocalFileImages(): Promise<void> {
+  private isMissingForTest(level: Level): boolean {
+    return import.meta.env.DEV && Number(new URLSearchParams(window.location.search).get('missing')) === level;
+  }
+
+  /** 初次请求偶发失败时再取一次图片；真正缺图仍由占位纹理接管。 */
+  private async loadMissingImages(): Promise<void> {
+    const isLocalFile = window.location.protocol === 'file:';
     await Promise.all(LEVELS.map(async (config) => {
-      const image = new Image();
-      const loaded = await new Promise<boolean>((resolve) => {
-        image.onload = () => resolve(true);
-        image.onerror = () => resolve(false);
-        image.src = new URL(`./assets/characters/lv${config.level}.png`, document.baseURI).href;
-      });
-      if (loaded) this.textures.addImage(config.textureKey, image);
+      if (this.textures.exists(config.textureKey) || this.isMissingForTest(config.level)) return;
+      const assetUrl = new URL(
+        isLocalFile ? `./assets/characters/lv${config.level}.png` : `./characters/lv${config.level}.png`,
+        document.baseURI,
+      );
+      for (let attempt = 0; attempt < (isLocalFile ? 1 : 2); attempt += 1) {
+        const url = new URL(assetUrl.href);
+        if (attempt > 0) url.searchParams.set('retry', String(Date.now()));
+        const image = new Image();
+        const loaded = await new Promise<boolean>((resolve) => {
+          image.onload = () => resolve(true);
+          image.onerror = () => resolve(false);
+          image.src = url.href;
+        });
+        if (loaded) {
+          this.textures.addImage(config.textureKey, image);
+          return;
+        }
+      }
     }));
   }
 
