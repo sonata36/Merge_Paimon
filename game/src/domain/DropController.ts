@@ -8,8 +8,10 @@ type DropControllerOptions = {
   guideEndY: number;
   cooldownMs: number;
   canDrop: () => boolean;
+  canReserve: () => boolean;
   onDrop: (x: number, level: Level) => void;
   onQueueChange: (current: Level, next: DropLevel) => void;
+  onReserveChange: (held: DropLevel | null, available: boolean) => void;
 };
 
 /** 统一处理鼠标与触屏：移动预览，按下后松开投放。 */
@@ -19,6 +21,8 @@ export class DropController {
   private nextDropAt = 0;
   private currentLevel: Level = drawDropLevel();
   private nextLevel: DropLevel = drawDropLevel();
+  private heldLevel: DropLevel | null = null;
+  private reserveUsedThisDrop = false;
   private readonly guide: Phaser.GameObjects.Graphics;
 
   constructor(
@@ -60,6 +64,7 @@ export class DropController {
     this.options.onDrop(this.x, this.currentLevel);
     this.currentLevel = this.nextLevel;
     this.nextLevel = drawDropLevel();
+    this.reserveUsedThisDrop = false;
     this.updatePreview();
   };
 
@@ -79,7 +84,7 @@ export class DropController {
     const displaySize = getSpriteDisplaySize(getLevelConfig(this.currentLevel));
     const startY = this.preview.y + displaySize / 2 + 5;
     const endY = Math.min(startY + 70, this.options.guideEndY);
-    this.guide.clear().lineStyle(2, 0x7b66bf, 0.75);
+    this.guide.clear().lineStyle(2, 0x7eab7c, 0.85);
     for (let y = startY; y < endY; y += 13) {
       this.guide.lineBetween(this.x, y, this.x, Math.min(y + 7, endY));
     }
@@ -87,6 +92,27 @@ export class DropController {
 
   setGuideVisible(visible: boolean): void {
     this.guide.setVisible(visible);
+  }
+
+  /** 每次实际投放前最多暂存或交换一次。 */
+  reserve(): boolean {
+    if (!this.options.canReserve() || this.reserveUsedThisDrop || this.currentLevel > 3) return false;
+    const current = this.currentLevel as DropLevel;
+    if (this.heldLevel === null) {
+      this.heldLevel = current;
+      this.currentLevel = this.nextLevel;
+      this.nextLevel = drawDropLevel();
+    } else {
+      this.currentLevel = this.heldLevel;
+      this.heldLevel = current;
+    }
+    this.reserveUsedThisDrop = true;
+    this.updatePreview();
+    return true;
+  }
+
+  refreshReserveAvailability(): void {
+    this.notifyReserveChange();
   }
 
   /** 只由本地开发测试面板调用，不改变正常随机池。 */
@@ -100,6 +126,8 @@ export class DropController {
     this.nextDropAt = 0;
     this.currentLevel = drawDropLevel();
     this.nextLevel = drawDropLevel();
+    this.heldLevel = null;
+    this.reserveUsedThisDrop = false;
     this.x = (this.options.minX + this.options.maxX) / 2;
     this.updatePreview();
   }
@@ -110,6 +138,14 @@ export class DropController {
     this.preview.setDisplaySize(getSpriteDisplaySize(config), getSpriteDisplaySize(config));
     this.movePreview(this.x);
     this.options.onQueueChange(this.currentLevel, this.nextLevel);
+    this.notifyReserveChange();
+  }
+
+  private notifyReserveChange(): void {
+    this.options.onReserveChange(
+      this.heldLevel,
+      !this.reserveUsedThisDrop && this.currentLevel <= 3 && this.options.canReserve(),
+    );
   }
 
   private destroy(): void {

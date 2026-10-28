@@ -7,7 +7,7 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: 'game-root',
   width: 480,
   height: 640,
-  backgroundColor: '#eee9ff',
+  backgroundColor: '#fff8e7',
   audio: { noAudio: true },
   scale: {
     mode: Phaser.Scale.FIT,

@@ -41,7 +41,7 @@ export const LEVELS: readonly LevelConfig[] = [
     { kind: 'circle', x: 0.68, y: -0.25, radius: 0.24 },
     { kind: 'circle', x: 0.28, y: 0.7, radius: 0.25 },
   ] },
-  { level: 5, radius: 53, fill: '#d9cafa', stroke: '#9875cb', label: '#4d3771', textureKey: 'level-5', parts: [
+  { level: 5, radius: 57, fill: '#d9cafa', stroke: '#9875cb', label: '#4d3771', textureKey: 'level-5', parts: [
     { kind: 'rect', x: 0, y: 0.08, width: 1.46, height: 0.78 },
     { kind: 'circle', x: -0.32, y: -0.1, radius: 0.5 },
     { kind: 'circle', x: -0.76, y: 0.1, radius: 0.21 },

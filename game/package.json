@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && npm run build:offline",
-    "build:offline": "esbuild src/main.ts --bundle --format=iife --platform=browser --target=es2022 --outfile=offline/game.js --minify --define:import.meta.env.DEV=false",
+    "build:offline": "esbuild src/main.ts --bundle --format=iife --platform=browser --target=es2022 --outfile=offline/game.js --minify --define:import.meta.env.DEV=false --external:*.png",
     "test": "node --experimental-strip-types --test tests/rules.test.mjs tests/compound.test.mjs tests/assets.test.mjs",
     "benchmark:physics": "node --experimental-strip-types tests/physics-benchmark.mjs",
     "preview": "vite preview"

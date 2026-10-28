@@ -28,9 +28,28 @@ export class GameScene extends Phaser.Scene {
   private nextImage: HTMLImageElement | null = null;
   private nextFallback: HTMLElement | null = null;
   private statusElement: HTMLElement | null = null;
+  private celebrationElement: HTMLElement | null = null;
+  private celebrationTimer: Phaser.Time.TimerEvent | null = null;
+  private hasCelebratedLevelEight = false;
   private startScreen: HTMLElement | null = null;
   private startButton: HTMLButtonElement | null = null;
   private muteButton: HTMLButtonElement | null = null;
+  private reserveButton: HTMLButtonElement | null = null;
+  private strategyHelpButton: HTMLButtonElement | null = null;
+  private strategyHelpPanel: HTMLElement | null = null;
+  private reserveImage: HTMLImageElement | null = null;
+  private reserveFallback: HTMLElement | null = null;
+  private reserveValue: HTMLElement | null = null;
+  private pushButton: HTMLButtonElement | null = null;
+  private pushLeftButton: HTMLButtonElement | null = null;
+  private pushRightButton: HTMLButtonElement | null = null;
+  private pushCancelButton: HTMLButtonElement | null = null;
+  private pushCountElement: HTMLElement | null = null;
+  private pushHintElement: HTMLElement | null = null;
+  private pushesLeft = 2;
+  private pushMode = false;
+  private selectedPushPieceId: number | null = null;
+  private readonly pushEligibleAfter = new Map<number, number>();
   private readonly backgroundMusic = new BackgroundMusic();
   private readonly soundFeedback = new SoundFeedback();
   private readonly missingLevels = new Set<Level>();
@@ -102,6 +121,7 @@ export class GameScene extends Phaser.Scene {
     this.nextImage = document.getElementById('next-image') as HTMLImageElement | null;
     this.nextFallback = document.getElementById('next-fallback');
     this.statusElement = document.getElementById('game-status');
+    this.celebrationElement = document.getElementById('level-eight-celebration');
     this.startScreen = document.getElementById('start-screen');
     this.startButton = document.getElementById('start-button') as HTMLButtonElement | null;
     this.startButton?.addEventListener('click', this.startGame);
@@ -112,6 +132,26 @@ export class GameScene extends Phaser.Scene {
     this.muteButton = document.getElementById('mute-toggle') as HTMLButtonElement | null;
     this.muteButton?.addEventListener('click', this.toggleMute);
     if (this.muteButton) this.muteButton.disabled = false;
+    this.reserveButton = document.getElementById('reserve-button') as HTMLButtonElement | null;
+    this.strategyHelpButton = document.getElementById('strategy-help-toggle') as HTMLButtonElement | null;
+    this.strategyHelpPanel = document.getElementById('strategy-help');
+    this.strategyHelpButton?.addEventListener('click', this.toggleStrategyHelp);
+    this.reserveImage = document.getElementById('reserve-image') as HTMLImageElement | null;
+    this.reserveFallback = document.getElementById('reserve-fallback');
+    this.reserveValue = document.getElementById('reserve-value');
+    this.reserveButton?.addEventListener('click', this.useReserve);
+    this.pushButton = document.getElementById('push-button') as HTMLButtonElement | null;
+    this.pushLeftButton = document.getElementById('push-left') as HTMLButtonElement | null;
+    this.pushRightButton = document.getElementById('push-right') as HTMLButtonElement | null;
+    this.pushCancelButton = document.getElementById('push-cancel') as HTMLButtonElement | null;
+    this.pushCountElement = document.getElementById('push-count');
+    this.pushHintElement = document.getElementById('push-hint');
+    this.pushButton?.addEventListener('click', this.beginPush);
+    this.pushLeftButton?.addEventListener('click', this.pushLeft);
+    this.pushRightButton?.addEventListener('click', this.pushRight);
+    this.pushCancelButton?.addEventListener('click', this.cancelPush);
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPushPointerDown);
+    this.updatePushControls();
     this.updateStatus('阅读提示后，点击“开始游戏”');
     this.gameOverElement = document.getElementById('game-over');
     this.finalScoreElement = document.getElementById('final-score');
@@ -125,7 +165,8 @@ export class GameScene extends Phaser.Scene {
       maxX: BOARD_RIGHT,
       guideEndY: FAILURE_LINE_Y - 8,
       cooldownMs: 400,
-      canDrop: () => this.hasStarted && !this.session.isEnded && !this.stressMode,
+      canDrop: () => this.hasStarted && !this.session.isEnded && !this.stressMode && !this.pushMode,
+      canReserve: () => this.hasStarted && !this.session.isEnded && !this.stressMode,
       onDrop: (x, level) => {
         const y = BOARD_TOP + getShapeHalfExtents(getLevelConfig(level)).y + 2;
         this.createPiece(level, x, y, this.time.now);
@@ -133,12 +174,13 @@ export class GameScene extends Phaser.Scene {
         if (!this.hasShownFirstDrop) {
           this.hasShownFirstDrop = true;
           this.updateStatus(`首次投放 ${level} 级角色成功`);
-          this.floatLabel(x, y + 8, '投放', '#5c4093');
+          this.floatLabel(x, y + 8, '投放', '#4d8062');
         } else {
           this.updateStatus('同级角色相碰可合成');
         }
       },
       onQueueChange: (_current, next) => this.updateNextLevel(next),
+      onReserveChange: (held, available) => this.updateReserveSlot(held, available),
     });
     this.configureTestControls(this.dropController);
 
@@ -149,11 +191,20 @@ export class GameScene extends Phaser.Scene {
       this.restartButton?.removeEventListener('click', this.restartGame);
       this.startButton?.removeEventListener('click', this.startGame);
       this.muteButton?.removeEventListener('click', this.toggleMute);
+      this.reserveButton?.removeEventListener('click', this.useReserve);
+      this.strategyHelpButton?.removeEventListener('click', this.toggleStrategyHelp);
+      this.pushButton?.removeEventListener('click', this.beginPush);
+      this.pushLeftButton?.removeEventListener('click', this.pushLeft);
+      this.pushRightButton?.removeEventListener('click', this.pushRight);
+      this.pushCancelButton?.removeEventListener('click', this.cancelPush);
+      this.input.off(Phaser.Input.Events.POINTER_DOWN, this.onPushPointerDown);
       this.backgroundMusic.close();
       this.soundFeedback.close();
+      this.hideLevelEightCelebration();
       this.mergeResolver.clear();
       this.pieces.clear();
       this.pieceIdByBodyId.clear();
+      this.pushEligibleAfter.clear();
       this.session.reset();
     });
   }
@@ -234,37 +285,37 @@ export class GameScene extends Phaser.Scene {
 
   private drawBoard(): void {
     const graphics = this.add.graphics().setDepth(-2);
-    graphics.fillStyle(0xffffff, 1);
+    graphics.fillStyle(0xfffcf3, 1);
     graphics.fillRoundedRect(30, 112, 420, 500, 28);
-    graphics.lineStyle(3, 0xb4a6e7, 1);
+    graphics.lineStyle(3, 0xd5b56f, 1);
     graphics.strokeRoundedRect(30, 112, 420, 500, 28);
 
-    graphics.lineStyle(3, 0x7b66bf, 1);
+    graphics.lineStyle(3, 0xa6b987, 1);
     graphics.lineBetween(BOARD_LEFT, BOARD_BOTTOM, BOARD_RIGHT, BOARD_BOTTOM);
-    graphics.lineStyle(2, 0xd5cbed, 1);
+    graphics.lineStyle(2, 0xd8d5b0, 1);
     graphics.lineBetween(BOARD_LEFT, BOARD_TOP, BOARD_LEFT, BOARD_BOTTOM);
     graphics.lineBetween(BOARD_RIGHT, BOARD_TOP, BOARD_RIGHT, BOARD_BOTTOM);
 
-    graphics.lineStyle(2, 0xe76982, 0.85);
+    graphics.lineStyle(2, 0xd8646a, 0.9);
     graphics.lineBetween(BOARD_LEFT + 2, FAILURE_LINE_Y, BOARD_RIGHT - 2, FAILURE_LINE_Y);
     this.add.text(BOARD_RIGHT - 9, FAILURE_LINE_Y - 7, '警戒线', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '14px',
-      color: '#a73758',
-      backgroundColor: '#fff8',
+      color: '#ad454b',
+      backgroundColor: '#fff8e6cc',
     }).setOrigin(1, 1);
 
     this.add.text(240, 28, '游戏棋盘', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '23px',
-      color: '#38295e',
+      color: '#3d6958',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
     this.add.text(240, 60, '待投放角色 ↓', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '16px',
-      color: '#746589',
+      color: '#6e8a72',
     }).setOrigin(0.5);
   }
 
@@ -305,6 +356,7 @@ export class GameScene extends Phaser.Scene {
     this.matter.world.setBodyRenderStyle(body);
     const piece: Piece = { id: this.nextPieceId++, level, image, releasedAt };
     this.pieces.set(piece.id, piece);
+    this.pushEligibleAfter.set(piece.id, this.time.now + 600);
     this.pieceIdByBodyId.set(body.id, piece.id);
     return piece;
   }
@@ -354,7 +406,8 @@ export class GameScene extends Phaser.Scene {
         this.soundFeedback.playMerge(plan.targetLevel);
         const points = 2 ** plan.targetLevel;
         this.updateStatus(`合成 ${plan.targetLevel} 级，获得 ${points} 分`);
-        this.floatLabel(x, y, `+${points}`, '#a73758');
+        this.floatLabel(x, y, `+${points}`, '#b57931');
+        if (plan.targetLevel === 8 && !this.hasCelebratedLevelEight) this.showLevelEightCelebration(x, y);
       } finally {
         this.mergeResolver.complete(plan);
       }
@@ -362,15 +415,19 @@ export class GameScene extends Phaser.Scene {
   };
 
   private removePiece(piece: Piece): void {
+    if (this.selectedPushPieceId === piece.id) this.clearPushSelection();
     const body = piece.image.body as MatterJS.BodyType;
     this.pieces.delete(piece.id);
     this.pieceIdByBodyId.delete(body.id);
+    this.pushEligibleAfter.delete(piece.id);
     this.session.forgetPiece(piece.id);
     if (this.testOverlinePiece?.id === piece.id) this.testOverlinePiece = null;
     piece.image.destroy();
   }
 
   private finishGame(): void {
+    this.cancelPush();
+    this.dropController?.refreshReserveAvailability();
     this.dropController?.setGuideVisible(false);
     this.mergeResolver.clear();
     this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.flushMerges, this);
@@ -386,11 +443,15 @@ export class GameScene extends Phaser.Scene {
 
   private readonly restartGame = (): void => {
     if (!this.session.isEnded) return;
+    this.hideLevelEightCelebration();
+    this.hasCelebratedLevelEight = false;
     for (const piece of [...this.pieces.values()]) this.removePiece(piece);
     this.pieces.clear();
     this.pieceIdByBodyId.clear();
     this.mergeResolver.clear();
     this.session.reset();
+    this.pushesLeft = 2;
+    this.cancelPush();
     this.nextPieceId = 1;
     this.hasShownFirstDrop = false;
     this.testOverlinePiece = null;
@@ -411,6 +472,8 @@ export class GameScene extends Phaser.Scene {
   private readonly startGame = (): void => {
     if (this.hasStarted) return;
     this.hasStarted = true;
+    this.updatePushControls();
+    this.dropController?.refreshReserveAvailability();
     this.dropController?.setGuideVisible(true);
     this.soundFeedback.unlock();
     this.backgroundMusic.play();
@@ -427,8 +490,142 @@ export class GameScene extends Phaser.Scene {
     this.muteButton.setAttribute('aria-label', this.soundFeedback.isMuted ? '当前已静音，点击开启声音' : '当前有声音，点击静音');
   };
 
+  private readonly useReserve = (): void => {
+    if (this.dropController?.reserve()) this.updateStatus('已切换预备位；投放后可再次使用');
+  };
+
+  private readonly toggleStrategyHelp = (): void => {
+    if (!this.strategyHelpPanel || !this.strategyHelpButton) return;
+    this.strategyHelpPanel.hidden = !this.strategyHelpPanel.hidden;
+    const expanded = !this.strategyHelpPanel.hidden;
+    this.strategyHelpButton.setAttribute('aria-expanded', String(expanded));
+    this.strategyHelpButton.setAttribute('aria-label', expanded ? '收起策略说明' : '查看策略说明');
+    this.strategyHelpButton.title = expanded ? '收起策略说明' : '查看策略说明';
+  };
+
+  private readonly beginPush = (): void => {
+    if (!this.hasStarted || this.session.isEnded || this.stressMode || this.pushesLeft <= 0) return;
+    if (this.pushMode) {
+      this.cancelPush();
+      return;
+    }
+    this.pushMode = true;
+    this.updatePushControls();
+    this.updateStatus('轻推：点击一枚已落稳的 1～4 级角色');
+  };
+
+  private readonly onPushPointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (!this.pushMode || this.session.isEnded) return;
+    let nearest: Piece | null = null;
+    let nearestDistance = Infinity;
+    for (const piece of this.pieces.values()) {
+      const body = piece.image.body as MatterJS.BodyType;
+      if (piece.level > 4 || body.isStatic || body.speed >= 0.7 || this.time.now < (this.pushEligibleAfter.get(piece.id) ?? Infinity)) continue;
+      const distance = Phaser.Math.Distance.Between(pointer.x, pointer.y, piece.image.x, piece.image.y);
+      const reach = Math.max(getShapeHalfExtents(getLevelConfig(piece.level)).x, getShapeHalfExtents(getLevelConfig(piece.level)).y) + 10;
+      if (distance <= reach && distance < nearestDistance) {
+        nearest = piece;
+        nearestDistance = distance;
+      }
+    }
+    this.clearPushSelection();
+    if (!nearest) {
+      this.updateStatus('请选择已落稳的 1～4 级角色');
+      return;
+    }
+    this.selectedPushPieceId = nearest.id;
+    nearest.image.setTint(0xffe58a);
+    this.updatePushControls();
+    this.updateStatus(`已选中 ${nearest.level} 级角色，选择左推或右推`);
+  };
+
+  private readonly pushLeft = (): void => this.applyPush(-1);
+  private readonly pushRight = (): void => this.applyPush(1);
+
+  private applyPush(direction: -1 | 1): void {
+    if (!this.pushMode || this.selectedPushPieceId === null || this.pushesLeft <= 0 || this.session.isEnded) return;
+    const piece = this.pieces.get(this.selectedPushPieceId);
+    if (!piece) { this.clearPushSelection(); return; }
+    const body = piece.image.body as MatterJS.BodyType;
+    if (piece.level > 4 || body.isStatic || body.speed >= 0.7) {
+      this.clearPushSelection();
+      this.updateStatus('角色正在移动，请重新选择落稳的角色');
+      return;
+    }
+    piece.image.applyForce(new Phaser.Math.Vector2(direction * body.mass * 0.006, 0));
+    this.pushesLeft -= 1;
+    this.cancelPush();
+    this.updateStatus(`轻推已使用，剩余 ${this.pushesLeft} 次`);
+  }
+
+  private clearPushSelection(): void {
+    if (this.selectedPushPieceId !== null) this.pieces.get(this.selectedPushPieceId)?.image.clearTint();
+    this.selectedPushPieceId = null;
+    this.updatePushControls();
+  }
+
+  private readonly cancelPush = (): void => {
+    this.clearPushSelection();
+    this.pushMode = false;
+    this.updatePushControls();
+  };
+
+  private updatePushControls(): void {
+    if (this.pushButton) {
+      this.pushButton.disabled = !this.hasStarted || this.session.isEnded || this.stressMode || this.pushesLeft <= 0;
+      this.pushButton.setAttribute('aria-pressed', String(this.pushMode));
+      this.pushButton.textContent = this.pushMode ? '取消轻推' : '选择轻推目标';
+    }
+    if (this.pushCountElement) this.pushCountElement.textContent = String(this.pushesLeft);
+    if (this.pushLeftButton) this.pushLeftButton.disabled = this.selectedPushPieceId === null;
+    if (this.pushRightButton) this.pushRightButton.disabled = this.selectedPushPieceId === null;
+    if (this.pushCancelButton) this.pushCancelButton.hidden = !this.pushMode;
+    if (this.pushHintElement) this.pushHintElement.textContent = this.pushMode
+      ? this.selectedPushPieceId === null ? '点击棋盘中已落稳的 1～4 级角色' : '选择方向，或点击取消'
+      : '选中角色后可向左或向右轻推';
+  }
+
   private updateStatus(message: string): void {
     if (this.statusElement) this.statusElement.textContent = message;
+  }
+
+  private showLevelEightCelebration(x: number, y: number): void {
+    this.hasCelebratedLevelEight = true;
+    this.updateStatus('恭喜合成开心大派蒙！');
+    if (this.celebrationElement) this.celebrationElement.hidden = false;
+    this.celebrationTimer = this.time.delayedCall(3200, () => {
+      this.celebrationTimer = null;
+      if (this.celebrationElement) this.celebrationElement.hidden = true;
+    });
+
+    const halo = this.add.graphics().setPosition(x, y).setDepth(6);
+    halo.lineStyle(4, 0xe2b358, 0.95).strokeCircle(0, 0, 28);
+    this.tweens.add({
+      targets: halo, scaleX: 3, scaleY: 3, alpha: 0, duration: 750,
+      onComplete: () => halo.destroy(),
+    });
+    for (let index = 0; index < 10; index += 1) {
+      const angle = index * Math.PI * 2 / 10;
+      const sparkle = this.add.text(x, y, '✦', {
+        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '22px',
+        color: index % 2 === 0 ? '#e4af51' : '#79a87a',
+        stroke: '#fffdf2', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(7);
+      this.tweens.add({
+        targets: sparkle,
+        x: x + Math.cos(angle) * 85,
+        y: y + Math.sin(angle) * 85,
+        alpha: 0,
+        duration: 820,
+        onComplete: () => sparkle.destroy(),
+      });
+    }
+  }
+
+  private hideLevelEightCelebration(): void {
+    this.celebrationTimer?.remove(false);
+    this.celebrationTimer = null;
+    if (this.celebrationElement) this.celebrationElement.hidden = true;
   }
 
   private floatLabel(x: number, y: number, message: string, color: string): void {
@@ -460,6 +657,21 @@ export class GameScene extends Phaser.Scene {
     if (this.nextFallback) {
       this.nextFallback.hidden = !this.missingLevels.has(level);
       this.nextFallback.textContent = String(level);
+    }
+  }
+
+  private updateReserveSlot(held: DropLevel | null, available: boolean): void {
+    if (this.reserveButton) this.reserveButton.disabled = !available;
+    if (this.reserveValue) this.reserveValue.textContent = held === null ? '空' : `${held} 级`;
+    if (this.reserveImage) {
+      this.reserveImage.hidden = held === null || this.missingLevels.has(held);
+      if (held !== null) this.reserveImage.src = window.location.protocol === 'file:'
+        ? `./assets/characters/lv${held}.png`
+        : `./characters/lv${held}.png`;
+    }
+    if (this.reserveFallback) {
+      this.reserveFallback.hidden = held === null || !this.missingLevels.has(held);
+      if (held !== null) this.reserveFallback.textContent = String(held);
     }
   }
 
@@ -530,6 +742,8 @@ export class GameScene extends Phaser.Scene {
     const onStress = (): void => {
       if (this.session.isEnded || this.stressMode) return;
       this.stressMode = true;
+      this.cancelPush();
+      this.dropController?.refreshReserveAvailability();
       this.dropController?.setGuideVisible(false);
       this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.flushMerges, this);
       this.mergeFlushScheduled = false;

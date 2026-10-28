@@ -3,32 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1b1834" />
+    <meta name="theme-color" content="#d9e9d8" />
     <title>合成大派蒙 · 课程演示版</title>
   </head>
   <body>
+    <div class="desktop-notice" role="note">请扩大浏览器窗口，以体验电脑版《合成大派蒙》。建议宽度至少 1100 像素。</div>
     <main class="page-shell">
       <header class="page-header">
-        <p class="eyebrow">课程项目 · 本地演示</p>
+        <p class="eyebrow">课程项目 · 桌面版</p>
         <h1>合成大派蒙</h1>
-        <p class="subtitle">移动鼠标选择位置并点击；触屏可按住滑动，松开后投放。同级相碰可升级并得分。</p>
+        <p class="subtitle">移动鼠标选择位置并点击投放；同级相碰可升级并得分。</p>
       </header>
 
+      <div class="desktop-layout">
       <section class="game-panel" aria-label="游戏画布">
-        <div class="panel-topline">
-          <div class="score-card"><span>当前分数</span><strong id="score-value">0</strong></div>
-          <div class="next-card"><img id="next-image" alt="" hidden /><span id="next-fallback" class="next-fallback" hidden>?</span><span>下一角色<br /><strong id="next-value">--</strong></span></div>
-          <div class="panel-actions">
-            <button id="mute-toggle" class="panel-button" type="button" aria-pressed="false" disabled>静音</button>
-          </div>
-        </div>
+        <span class="panel-mascot" aria-hidden="true"></span>
         <p id="game-status" class="game-status" role="status" aria-live="polite">正在载入角色…</p>
         <div id="game-root">
           <div id="start-screen" class="screen-overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
             <div class="screen-card">
               <p class="screen-eyebrow">准备好了吗？</p>
               <h2 id="start-title">开始合成</h2>
-              <p>移动鼠标或按住屏幕调整位置，松开投放。相同等级碰撞会合成并加分。</p>
+              <p>移动鼠标调整位置，点击投放。相同等级碰撞会合成并加分。</p>
               <p class="screen-hint">留意红色警戒线；首次点击开始后才会启用音效。</p>
               <button id="start-button" type="button" disabled>正在载入…</button>
             </div>
@@ -42,15 +38,60 @@
               <button id="restart-button" type="button">重新开始</button>
             </div>
           </div>
+          <div id="level-eight-celebration" class="level-eight-celebration" role="status" aria-live="polite" hidden>
+            <div class="celebration-sparkles" aria-hidden="true">
+              <span>✦</span><span>✧</span><span>✦</span><span>✧</span><span>✦</span><span>✧</span>
+            </div>
+            <div class="celebration-card">
+              <span class="celebration-kicker">✦ 八级合成达成 ✦</span>
+              <h2>恭喜合成开心大派蒙</h2>
+              <p>继续合成，挑战更高分数！</p>
+            </div>
+          </div>
         </div>
       </section>
 
+      <aside class="side-panel" aria-label="游戏信息与角色图鉴">
+        <div class="panel-topline">
+          <div class="score-card"><span>当前分数</span><strong id="score-value">0</strong></div>
+          <div class="next-card"><img id="next-image" alt="" hidden /><span id="next-fallback" class="next-fallback" hidden>?</span><span>下一角色<br /><strong id="next-value">--</strong></span></div>
+          <div class="panel-actions"><button id="mute-toggle" class="panel-button" type="button" aria-pressed="false" disabled>静音</button></div>
+        </div>
+        <section class="strategy-panel" aria-labelledby="strategy-title">
+          <div class="strategy-heading">
+            <h2 id="strategy-title">策略区</h2>
+            <button id="strategy-help-toggle" class="strategy-help-toggle" type="button" aria-label="查看策略说明" aria-controls="strategy-help" aria-expanded="false" title="查看策略说明">!</button>
+          </div>
+          <div id="strategy-help" class="strategy-help" hidden>
+            <p><strong>预备位：</strong>点击“暂存 / 交换”，可把当前待投放角色存起来，并改用下一角色；预备位已有角色时则交换两者。每次实际投放前只能使用一次。</p>
+            <p><strong>轻推：</strong>点击“选择轻推目标”，再点击棋盘中已落稳的 1～4 级角色，最后点击左推或右推。每局最多两次；选目标时不会投放新角色，可点击“取消选择”退出。</p>
+          </div>
+          <div class="reserve-row">
+            <div class="reserve-slot" aria-label="预备位中的角色">
+              <img id="reserve-image" alt="预备位角色" hidden />
+              <span id="reserve-fallback" class="next-fallback" hidden>?</span>
+              <span>预备位<strong id="reserve-value">空</strong></span>
+            </div>
+            <button id="reserve-button" class="panel-button" type="button" disabled>暂存 / 交换</button>
+          </div>
+          <p>预备位每次投放前可使用一次。</p>
+          <div class="push-tools">
+            <button id="push-button" class="panel-button" type="button" disabled>选择轻推目标</button>
+            <span>剩余 <strong id="push-count">2</strong> 次</span>
+            <button id="push-left" class="panel-button" type="button" disabled>← 左推</button>
+            <button id="push-right" class="panel-button" type="button" disabled>右推 →</button>
+            <button id="push-cancel" class="panel-button" type="button" hidden>取消选择</button>
+          </div>
+          <p id="push-hint">选中角色后可向左或向右轻推</p>
+        </section>
+        <section class="level-guide" aria-labelledby="level-guide-title">
+          <h2 id="level-guide-title">角色等级图鉴</h2>
+          <ol id="level-list" class="level-list"></ol>
+        </section>
+        <p class="page-note">直接投放 1～3 级；同级合成后升级。新投放角色有 2 秒宽限，随后持续越过警戒线 3 秒则结束。每次投放间隔至少 0.4 秒。</p>
+      </aside>
+      </div>
       <p id="asset-warning" class="asset-warning" role="status" hidden></p>
-      <section class="level-guide" aria-labelledby="level-guide-title">
-        <h2 id="level-guide-title">角色等级图鉴</h2>
-        <ol id="level-list" class="level-list"></ol>
-      </section>
-      <p class="page-note">直接投放 1～3 级；同级合成后升级。新投放角色有 2 秒宽限，随后持续越过警戒线 3 秒则结束。每次投放间隔至少 0.4 秒。</p>
       <p class="music-credit">背景音乐：<a href="https://www.youtube.com/watch?v=pWPpwQNxZTk" target="_blank" rel="noopener noreferrer">A Day in Mondstadt</a> · Yu-Peng Chen / HOYO-MiX · © miHoYo。仅用于个人、非商业课程演示。</p>
       <div id="test-tools" class="test-tools" hidden>
         <label for="test-level">本地验收：将待投放等级设为</label>
