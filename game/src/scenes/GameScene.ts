@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { LEVELS, getLevelConfig, getShapeHalfExtents, getSpriteDisplaySize } from '../config/LevelCatalog';
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH, RENDER_SCALE } from '../config/DisplayScale';
 import type { DropLevel, Level } from '../config/LevelCatalog';
 import { createCompoundBody } from '../domain/CompoundBody';
 import { DropController } from '../domain/DropController';
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.cameras.main.setZoom(RENDER_SCALE).centerOn(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2);
     void this.loadMissingImages().then(() => {
       if (this.sys.isActive()) this.initializeGame();
     });
@@ -314,6 +316,7 @@ export class GameScene extends Phaser.Scene {
     this.add.text(BOARD_RIGHT - 9, FAILURE_LINE_Y - 7, '警戒线', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '14px',
+      resolution: RENDER_SCALE,
       color: '#ad454b',
       backgroundColor: '#fff8e6cc',
     }).setOrigin(1, 1);
@@ -321,6 +324,7 @@ export class GameScene extends Phaser.Scene {
     this.add.text(240, 28, '游戏棋盘', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '23px',
+      resolution: RENDER_SCALE,
       color: '#3d6958',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -328,6 +332,7 @@ export class GameScene extends Phaser.Scene {
     this.add.text(240, 60, '待投放角色 ↓', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '16px',
+      resolution: RENDER_SCALE,
       color: '#6e8a72',
     }).setOrigin(0.5);
   }
@@ -529,12 +534,13 @@ export class GameScene extends Phaser.Scene {
 
   private readonly onPushPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (!this.pushMode || this.session.isEnded) return;
+    pointer.updateWorldPoint(this.cameras.main);
     let nearest: Piece | null = null;
     let nearestDistance = Infinity;
     for (const piece of this.pieces.values()) {
       const body = piece.image.body as MatterJS.BodyType;
       if (piece.level > 4 || body.isStatic || body.speed >= 0.7 || this.time.now < (this.pushEligibleAfter.get(piece.id) ?? Infinity)) continue;
-      const distance = Phaser.Math.Distance.Between(pointer.x, pointer.y, piece.image.x, piece.image.y);
+      const distance = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, piece.image.x, piece.image.y);
       const reach = Math.max(getShapeHalfExtents(getLevelConfig(piece.level)).x, getShapeHalfExtents(getLevelConfig(piece.level)).y) + 10;
       if (distance <= reach && distance < nearestDistance) {
         nearest = piece;
@@ -621,6 +627,7 @@ export class GameScene extends Phaser.Scene {
       const angle = index * Math.PI * 2 / 10;
       const sparkle = this.add.text(x, y, '✦', {
         fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '22px',
+        resolution: RENDER_SCALE,
         color: index % 2 === 0 ? '#e4af51' : '#79a87a',
         stroke: '#fffdf2', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(7);
@@ -645,6 +652,7 @@ export class GameScene extends Phaser.Scene {
     const label = this.add.text(x, y, message, {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
+      resolution: RENDER_SCALE,
       fontStyle: 'bold',
       color,
       stroke: '#ffffff',

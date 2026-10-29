@@ -44,19 +44,19 @@ export class DropController {
 
   private readonly onPointerMove = (pointer: Phaser.Input.Pointer): void => {
     if (this.armedPointerId !== null && pointer.id !== this.armedPointerId) return;
-    this.movePreview(pointer.x);
+    this.movePreview(this.getPointerWorldX(pointer));
   };
 
   private readonly onPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (this.armedPointerId !== null) return;
     this.armedPointerId = pointer.id;
-    this.movePreview(pointer.x);
+    this.movePreview(this.getPointerWorldX(pointer));
   };
 
   private readonly onPointerUp = (pointer: Phaser.Input.Pointer): void => {
     if (pointer.id !== this.armedPointerId) return;
     this.armedPointerId = null;
-    this.movePreview(pointer.x);
+    this.movePreview(this.getPointerWorldX(pointer));
 
     const now = this.scene.time.now;
     if (!this.options.canDrop() || now < this.nextDropAt) return;
@@ -71,6 +71,11 @@ export class DropController {
   private readonly onPointerUpOutside = (pointer: Phaser.Input.Pointer): void => {
     if (pointer.id === this.armedPointerId) this.armedPointerId = null;
   };
+
+  private getPointerWorldX(pointer: Phaser.Input.Pointer): number {
+    pointer.updateWorldPoint(this.scene.cameras.main);
+    return pointer.worldX;
+  }
 
   private movePreview(pointerX: number): void {
     const halfWidth = getShapeHalfExtents(getLevelConfig(this.currentLevel)).x;

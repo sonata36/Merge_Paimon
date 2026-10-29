@@ -19,8 +19,9 @@ body {
 }
 
 .page-shell {
-  --board-width: clamp(350px, calc((100dvh - 150px) * .75), 560px);
-  width: min(100%, 1130px);
+  --board-width: clamp(350px, min(calc((100dvh - 150px) * .75), calc(100vw - 520px)), 720px);
+  --side-width: clamp(380px, 28vw, 460px);
+  width: min(100%, 1440px);
   margin: 0 auto;
   padding: 12px 20px;
 }
@@ -57,7 +58,7 @@ h1 {
 
 .desktop-layout {
   display: grid;
-  grid-template-columns: minmax(0, calc(var(--board-width) + 80px)) minmax(340px, 380px);
+  grid-template-columns: minmax(0, calc(var(--board-width) + 80px)) minmax(380px, var(--side-width));
   gap: 18px;
   margin-top: 12px;
   align-items: start;
