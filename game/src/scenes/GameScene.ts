@@ -571,7 +571,7 @@ export class GameScene extends Phaser.Scene {
       this.updateStatus('角色正在移动，请重新选择落稳的角色');
       return;
     }
-    piece.image.applyForce(new Phaser.Math.Vector2(direction * body.mass * 0.006, 0));
+    piece.image.applyForce(new Phaser.Math.Vector2(direction * body.mass * 0.007, 0));
     this.pushesLeft -= 1;
     this.cancelPush();
     this.updateStatus(`轻推已使用，剩余 ${this.pushesLeft} 次`);

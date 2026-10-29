@@ -521,6 +521,13 @@ select:focus-visible {
   opacity: .78;
   pointer-events: none;
 }
+@media (min-width: 1440px) and (min-height: 851px) {
+  .game-panel {
+    margin-left: -115px;
+    width: calc(100% + 115px);
+    padding-left: 127px;
+  }
+}
 @media (max-height: 850px) {
   .panel-mascot { display: none; }
 }
@@ -571,7 +578,7 @@ button:focus-visible, select:focus-visible { outline-color: #648e79; }
 .music-credit a { color: #8d6227; }
 .test-tools { background: rgba(255, 251, 236, .88); color: #40584b; border-color: #cfad6e; }
 
-@media (max-width: 1200px) {
+@media (max-width: 1439px) {
   .panel-mascot { display: none; }
 }
 
