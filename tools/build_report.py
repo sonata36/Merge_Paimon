@@ -98,7 +98,11 @@ def make_table(lines: list[str]) -> LongTable:
     rows = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in lines]
     rows.pop(1)  # Markdown alignment row
     count = len(rows[0])
-    fractions = {2: [0.26, 0.74], 3: [0.21, 0.45, 0.34]}.get(count, [1 / count] * count)
+    fractions = {
+        2: [0.26, 0.74],
+        3: [0.21, 0.45, 0.34],
+        4: [0.17, 0.18, 0.34, 0.31],
+    }.get(count, [1 / count] * count)
     widths = [CONTENT_W * item for item in fractions]
     data = []
     for index, row in enumerate(rows):
@@ -128,7 +132,8 @@ def make_figure(line: str):
         raise FileNotFoundError(path)
     with PILImage.open(path) as source_image:
         width, height = source_image.size
-    scale = min(CONTENT_W / width, 230 / height)
+    max_height = 345 if filename.startswith("figures/") else 230
+    scale = min(CONTENT_W / width, max_height / height)
     figure = Image(str(path), width=width * scale, height=height * scale)
     figure.hAlign = "CENTER"
     return KeepTogether([Spacer(1, 5), figure, Paragraph(markup(caption), STYLES["caption"])])
@@ -149,7 +154,9 @@ def parse_document() -> list:
             while index < len(lines) and lines[index].strip().startswith("|"):
                 block.append(lines[index])
                 index += 1
-            story.extend([Spacer(1, 4), make_table(block), Spacer(1, 8)])
+            table = make_table(block)
+            column_count = len(block[0].strip().strip("|").split("|"))
+            story.extend([Spacer(1, 4), KeepTogether([table]) if column_count == 4 else table, Spacer(1, 8)])
             continue
         if line.startswith("!["):
             story.append(make_figure(line))
